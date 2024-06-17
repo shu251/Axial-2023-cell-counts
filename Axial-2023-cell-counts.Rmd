@@ -6,6 +6,13 @@ date: "2024-06-17"
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(readr)
+Axial_Cell_Counts_Sheet1 <- read_csv("input-data/Axial Cell Counts - Sheet1.csv")
+View(Axial_Cell_Counts_Sheet1)
+```
+```{r}
+Axial_Cell_Counts_Sheet1 %>% 
+  
 ```
 
 
