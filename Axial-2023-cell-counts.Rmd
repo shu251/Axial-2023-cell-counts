@@ -3,17 +3,35 @@ title: "Axial-2023-cell-counts"
 output: html_document
 date: "2024-06-17"
 ---
-
-```{r setup, include=FALSE}
+Data import and cleanup
+```{R}
 library(tidyverse)
 library(readr)
-Axial_Cell_Counts_Sheet1 <- read_csv("input-data/Axial Cell Counts - Sheet1.csv")
-View(Axial_Cell_Counts_Sheet1)
+Axial_cellcounts <- read_csv("input-data/Axial_cellcounts - Sheet1.csv")
+View(Axial_cellcounts)
+
+is.na(Axial_cellcounts) <- Axial_cellcounts == "n/a" #Changes character "n/a" to a true NA
+
+counts <- Axial_cellcounts %>%
+  filter(!is.na(CELL_ML))
 ```
-```{r}
 
-is.na(Axial_Cell_Counts_Sheet1) <- Axial_Cell_Counts_Sheet1 == "n/a"
-  
+Plot cells counts by location type
+```{R}
+?geom_jitter
+
+library(ggplot2)
+
+str(counts) #check structure of data. CELL_ML is col_character() so must convert to numeric
+counts$CELL_ML <- as.numeric(counts$CELL_ML)
 ```
+Make the plot
+```{R}
+ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
+  geom_jitter() + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(LOC)) +
+  labs(x = "Sample Location", y = "Cells/ml (log)")
 
-
+```
