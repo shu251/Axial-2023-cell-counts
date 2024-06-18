@@ -8,17 +8,18 @@ Data import and cleanup
 library(tidyverse)
 library(readr)
 Axial_cellcounts <- read_csv("input-data/Axial_cellcounts - Sheet1.csv")
-View(Axial_cellcounts)
+# View(Axial_cellcounts)
 
 is.na(Axial_cellcounts) <- Axial_cellcounts == "n/a" #Changes character "n/a" to a true NA
 
 counts <- Axial_cellcounts %>%
   filter(!is.na(CELL_ML))
+# head(counts)
 ```
 
 Plot cells counts by location type
 ```{R}
-?geom_jitter
+# ?geom_jitter
 
 library(ggplot2)
 
@@ -31,7 +32,40 @@ ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
   geom_jitter() + 
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  facet_grid(cols=vars(LOC)) +
+  facet_grid(cols = vars(LOC), space = "free", scales = "free") +
   labs(x = "Sample Location", y = "Cells/ml (log)")
 
 ```
+1. Make the above plot ready to be presented at Lab meeting for Julie.
+2. Make boxplots with the same data. 4 boxes total, for each of your location categories.
+3. Use "write.csv" to make a csv file to share. 
+```{r}
+
+```
+
+## Plot by depth
+
+```{r}
+str(counts)
+# Filter by plume samples we want and the background
+
+# Plot depth by cell count.
+counts %>% 
+  filter(grepl("Plume", `SAMPLE_ID(s)`) | VENT == "background") %>% 
+  mutate(WATER_COLUMN_CATEGORY = case_when(
+    DEPTH > 1450 ~ "DEEP",
+    DEPTH < 450 ~ "SHALLOW"
+  )) %>% 
+  ggplot(aes(x = CELL_ML, y = DEPTH, fill = `SAMPLE_ID(s)`)) +
+    geom_point(shape = 21, color = "black") +
+    scale_x_log10() +
+    scale_y_reverse() +
+  facet_grid(rows = vars(WATER_COLUMN_CATEGORY), cols = vars(`SAMPLE_ID(s)`), scales = "free")
+```
+
+
+```{r}
+
+```
+
+
