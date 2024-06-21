@@ -1,0 +1,112 @@
+---
+title: "Axial-2023-cell-counts"
+output: html_document
+date: "2024-06-17"
+---
+Data import and cleanup
+```{R}
+library(tidyverse)
+library(readr)
+Axialcellcounts <- read_csv("input-data/Axialcellcounts.csv")
+View(Axialcellcounts)
+
+is.na(Axialcellcounts) <- Axialcellcounts == "n/a" #Changes character "n/a" to a true NA
+
+counts <- Axialcellcounts %>%
+  filter(!is.na(CELL_ML))
+```
+
+Plot cells counts by location type
+```{R}
+?geom_jitter
+
+library(ggplot2)
+
+str(counts) #check structure of data. CELL_ML is col_character() so must convert to numeric
+counts$CELL_ML <- as.numeric(counts$CELL_ML)
+```
+Make the plot
+```{R}
+ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
+  geom_jitter() + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(LOC), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)")
+
+```
+1. Make the above plot ready to be presented at Lab meeting for Julie. 
+```{R}
+#Remove uneccesary columns & rename column LOC to LOCATION
+refinedcounts <- counts %>% select(-"lOCATION") %>%
+  filter( LOC != "background")
+
+names(refinedcounts)[names(refinedcounts) == "LOC"] <- "Location"
+
+# Calculate the average of y
+(81900 + 65300) / 2
+average_background <- 73600
+
+# Add a horizontal line for the average of y
+#plot + geom_hline(yintercept = average_background, color = "red", linetype = "dashed")
+
+#Rename above_vent to niskin
+refinedcounts$Location[refinedcounts$Location == "above_vent"] <- "Niskin"
+refinedcounts$Location[refinedcounts$Location == "plume"] <- "Plume"
+refinedcounts$Location[refinedcounts$Location == "vent"] <- "Vent"
+
+ggplot(refinedcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
+  geom_jitter() + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(Location), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)") + 
+  geom_hline(yintercept = average_background, color = "red", linetype = "dashed")
+
+```
+Sarah's pointers - just vent and background. geom_jitter is making it look crowded too, try geom_point?
+```{r}
+ventcounts <- counts %>% select(-"lOCATION") %>%
+  filter( LOC != "plume") %>% filter(LOC != "above_vent")
+
+names(ventcounts)[names(ventcounts) == "LOC"] <- "Location"
+ventcounts$Location[ventcounts$Location == "background"] <- "Background"
+ventcounts$Location[ventcounts$Location == "vent"] <- "Vent"
+
+ggplot(ventcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
+  geom_point() + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(Location), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)")
+
+```
+
+2. Make box plots with the same data. 4 boxes total, for each location categories.
+3. Use write.csv to make a CSV file to share
+```{r}
+
+```
+
+Plot by depth
+```{R}
+str(Axial_cellcounts)
+#Filter by plume samples we want and background
+#Plot depth by cell count
+#subset samples that have plume and in vent have background
+#grepl looks for plume anywhere
+counts %>% 
+  filter(grepl("Plume", `SAMPLE_ID(s)`) | VENT == "background") %>% 
+  mutate(WATER_COLUMN_CATEGORY = case_when(
+    DEPTH > 1000 ~ "DEEP",
+    DEPTH < 450 ~ "SHALLOW"
+  )) %>%
+  ggplot(aes(x = CELL_ML, y = DEPTH, fill = `SAMPLE_ID(s)`)) +
+  geom_point(shape=21, color = "black") +
+    scale_x_log10() +
+    scale_y_reverse() +
+    facet_grid(rows = vars(WATER_COLUMN_CATEGORY), cols = vars(`SAMPLE_ID(s)`), scales = "free")
+  
+  
+```
+  
