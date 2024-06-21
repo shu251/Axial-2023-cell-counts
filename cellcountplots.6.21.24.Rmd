@@ -88,9 +88,9 @@ ggplot(ventcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
 
 ```
 
-Plot by depth
+Plot by depth- updated csv file name in code 6.21.24
 ```{R}
-str(Axial_cellcounts)
+str(Axialcellcounts)
 #Filter by plume samples we want and background
 #Plot depth by cell count
 #subset samples that have plume and in vent have background
