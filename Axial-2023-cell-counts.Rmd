@@ -7,12 +7,12 @@ Data import and cleanup
 ```{R}
 library(tidyverse)
 library(readr)
-Axial_cellcounts <- read_csv("input-data/Axial_cellcounts - Sheet1.csv")
-View(Axial_cellcounts)
+Axialcellcounts <- read_csv("input-data/Axialcellcounts.csv")
+View(Axialcellcounts)
 
-is.na(Axial_cellcounts) <- Axial_cellcounts == "n/a" #Changes character "n/a" to a true NA
+is.na(Axialcellcounts) <- Axialcellcounts == "n/a" #Changes character "n/a" to a true NA
 
-counts <- Axial_cellcounts %>%
+counts <- Axialcellcounts %>%
   filter(!is.na(CELL_ML))
 ```
 
@@ -31,7 +31,65 @@ ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
   geom_jitter() + 
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  facet_grid(cols=vars(LOC)) +
+  facet_grid(cols=vars(LOC), space = "free", scales = "free") +
   labs(x = "Sample Location", y = "Cells/ml (log)")
 
 ```
+1. Make the above plot ready to be presented at Lab meeting for Julie. 
+```{R}
+#Remove uneccesary columns & rename column LOC to LOCATION
+refinedcounts <- counts %>% select(-"lOCATION") %>%
+  filter( LOC != "background")
+
+names(refinedcounts)[names(refinedcounts) == "LOC"] <- "Location"
+
+# Calculate the average of y
+(81900 + 65300) / 2
+average_background <- 73600
+
+# Add a horizontal line for the average of y
+#plot + geom_hline(yintercept = average_background, color = "red", linetype = "dashed")
+
+#Rename above_vent to niskin
+refinedcounts$Location[refinedcounts$Location == "above_vent"] <- "Niskin"
+refinedcounts$Location[refinedcounts$Location == "plume"] <- "Plume"
+refinedcounts$Location[refinedcounts$Location == "vent"] <- "Vent"
+
+ggplot(refinedcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
+  geom_jitter() + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(Location), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)") + 
+  geom_hline(yintercept = average_background, color = "red", linetype = "dashed")
+
+```
+
+2. Make box plots with the same data. 4 boxes total, for each location categories.
+3. Use write.csv to make a CSV file to share
+```{r}
+
+```
+
+Plot by depth
+```{R}
+str(Axial_cellcounts)
+#Filter by plume samples we want and background
+#Plot depth by cell count
+#subset samples that have plume and in vent have background
+#grepl looks for plume anywhere
+counts %>% 
+  filter(grepl("Plume", `SAMPLE_ID(s)`) | VENT == "background") %>% 
+  mutate(WATER_COLUMN_CATEGORY = case_when(
+    DEPTH > 1000 ~ "DEEP",
+    DEPTH < 450 ~ "SHALLOW"
+  )) %>%
+  ggplot(aes(x = CELL_ML, y = DEPTH, fill = `SAMPLE_ID(s)`)) +
+  geom_point(shape=21, color = "black") +
+    scale_x_log10() +
+    scale_y_reverse() +
+    facet_grid(rows = vars(WATER_COLUMN_CATEGORY), cols = vars(`SAMPLE_ID(s)`), scales = "free")
+  
+  
+```
+  
