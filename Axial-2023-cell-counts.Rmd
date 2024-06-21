@@ -7,18 +7,24 @@ Data import and cleanup
 ```{R}
 library(tidyverse)
 library(readr)
+<<<<<<< HEAD
 Axialcellcounts <- read_csv("input-data/Axialcellcounts.csv")
 View(Axialcellcounts)
+=======
+Axial_cellcounts <- read_csv("input-data/Axial_cellcounts - Sheet1.csv")
+# View(Axial_cellcounts)
+>>>>>>> d66e5132b7af7ca99b0790e20d50c7dde8c3f817
 
 is.na(Axialcellcounts) <- Axialcellcounts == "n/a" #Changes character "n/a" to a true NA
 
 counts <- Axialcellcounts %>%
   filter(!is.na(CELL_ML))
+# head(counts)
 ```
 
 Plot cells counts by location type
 ```{R}
-?geom_jitter
+# ?geom_jitter
 
 library(ggplot2)
 
@@ -31,6 +37,7 @@ ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
   geom_jitter() + 
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+<<<<<<< HEAD
   facet_grid(cols=vars(LOC), space = "free", scales = "free") +
   labs(x = "Sample Location", y = "Cells/ml (log)")
 
@@ -67,10 +74,20 @@ ggplot(refinedcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
 
 2. Make box plots with the same data. 4 boxes total, for each location categories.
 3. Use write.csv to make a CSV file to share
+=======
+  facet_grid(cols = vars(LOC), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)")
+
+```
+1. Make the above plot ready to be presented at Lab meeting for Julie.
+2. Make boxplots with the same data. 4 boxes total, for each of your location categories.
+3. Use "write.csv" to make a csv file to share. 
+>>>>>>> d66e5132b7af7ca99b0790e20d50c7dde8c3f817
 ```{r}
 
 ```
 
+<<<<<<< HEAD
 Plot by depth
 ```{R}
 str(Axial_cellcounts)
@@ -93,3 +110,31 @@ counts %>%
   
 ```
   
+=======
+## Plot by depth
+
+```{r}
+str(counts)
+# Filter by plume samples we want and the background
+
+# Plot depth by cell count.
+counts %>% 
+  filter(grepl("Plume", `SAMPLE_ID(s)`) | VENT == "background") %>% 
+  mutate(WATER_COLUMN_CATEGORY = case_when(
+    DEPTH > 1450 ~ "DEEP",
+    DEPTH < 450 ~ "SHALLOW"
+  )) %>% 
+  ggplot(aes(x = CELL_ML, y = DEPTH, fill = `SAMPLE_ID(s)`)) +
+    geom_point(shape = 21, color = "black") +
+    scale_x_log10() +
+    scale_y_reverse() +
+  facet_grid(rows = vars(WATER_COLUMN_CATEGORY), cols = vars(`SAMPLE_ID(s)`), scales = "free")
+```
+
+
+```{r}
+
+```
+
+
+>>>>>>> d66e5132b7af7ca99b0790e20d50c7dde8c3f817
