@@ -4,11 +4,11 @@ output: html_document
 date: "2024-06-17"
 ---
 Data import and cleanup
-```{R}
+```{r}
 library(tidyverse)
 library(readr)
 Axialcellcounts <- read_csv("input-data/Axialcellcounts.csv")
-View(Axialcellcounts)
+# View(Axialcellcounts)
 
 is.na(Axialcellcounts) <- Axialcellcounts == "n/a" #Changes character "n/a" to a true NA
 
@@ -17,26 +17,26 @@ counts <- Axialcellcounts %>%
 ```
 
 Plot cells counts by location type
-```{R}
-?geom_jitter
+```{r}
+# ?geom_jitter
 
 library(ggplot2)
 
 str(counts) #check structure of data. CELL_ML is col_character() so must convert to numeric
 counts$CELL_ML <- as.numeric(counts$CELL_ML)
 ```
+
 Make the plot
-```{R}
+```{r}
 ggplot(counts, aes(x = VENT, y = CELL_ML, color = LOC)) +
   geom_jitter() + 
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   facet_grid(cols=vars(LOC), space = "free", scales = "free") +
   labs(x = "Sample Location", y = "Cells/ml (log)")
-
 ```
 1. Make the above plot ready to be presented at Lab meeting for Julie. 
-```{R}
+```{r}
 #Remove uneccesary columns & rename column LOC to LOCATION
 refinedcounts <- counts %>% select(-"lOCATION") %>%
   filter( LOC != "background")
@@ -64,6 +64,7 @@ ggplot(refinedcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
   geom_hline(yintercept = average_background, color = "red", linetype = "dashed")
 
 ```
+
 Sarah's pointers - just vent and background. geom_jitter is making it look crowded too, try geom_point?
 ```{r}
 ventcounts <- counts %>% select(-"lOCATION") %>%
@@ -84,12 +85,9 @@ ggplot(ventcounts, aes(x = VENT, y = CELL_ML, color = Location)) +
 
 2. Make box plots with the same data. 4 boxes total, for each location categories.
 3. Use write.csv to make a CSV file to share
-```{r}
-
-```
 
 Plot by depth- updated csv file name in code 6.21.24
-```{R}
+```{r}
 str(Axialcellcounts)
 #Filter by plume samples we want and background
 #Plot depth by cell count
@@ -110,3 +108,20 @@ counts %>%
   
 ```
   
+```{r}
+ventcounts <- counts %>% select(-"lOCATION") %>%
+  filter( LOC != "plume") %>% filter(LOC != "above_vent")
+
+names(ventcounts)[names(ventcounts) == "LOC"] <- "Location"
+ventcounts$Location[ventcounts$Location == "background"] <- "Background"
+ventcounts$Location[ventcounts$Location == "vent"] <- "Vent"
+
+ggplot(ventcounts, aes(x = VENT, y = CELL_ML, fill = Location)) +
+  geom_point(size = 5, shape = 21, color = "black") + 
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_grid(cols=vars(Location), space = "free", scales = "free") +
+  labs(x = "Sample Location", y = "Cells/ml (log)") +
+  theme_bw()
+# ggplot themes
+```
