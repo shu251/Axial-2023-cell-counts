@@ -116,7 +116,7 @@ names(ventcounts)[names(ventcounts) == "LOC"] <- "Location"
 ventcounts$Location[ventcounts$Location == "background"] <- "Background"
 ventcounts$Location[ventcounts$Location == "vent"] <- "Vent"
 
-ggplot(ventcounts, aes(x = VENT, y = CELL_ML, fill = Location)) +
+ggplot(ventcounts, aes(x = VENT, y = CELL_ML, fill = COLLECTION)) +
   geom_point(size = 5, shape = 21, color = "black") + 
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
