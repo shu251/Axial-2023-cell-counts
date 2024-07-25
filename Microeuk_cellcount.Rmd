@@ -1,0 +1,121 @@
+---
+title: "microeuk-cell-count-Axial2023"
+output: html_document
+date: "2024-07-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set up
+
+```{r}
+library(tidyverse)
+library(scales)
+```
+
+# Input data
+
+In the shared Axial Cruise 2023 google drive, and under ALL cruise data, there is a sheet called *Grazing-FLP-counts*. Individual sheets from this spreadsheet are used for counting all cells.
+
+Navigate to sheet of interest and export as a .csv from google drive, save in *input-data*
+
+# Eukaryote cell counts
+
+Import raw cell count data
+
+```{r}
+# Import csv
+counts_raw <- read.csv("input-data/Grazing-FLP-counts - axial23_eukcounts.csv")
+
+# Change "NAs" to a zero.
+counts_raw[is.na(counts_raw)] <- 0
+
+# head(counts_raw)
+```
+
+## Set up cells per ml calc
+
+Determine diameter of FOV, grid, etc.
+
+```
+CELLS_PER_ML = ((MEAN)*(Area_chamber))/((Volume)*(Area_FOV)*(Dilution_factor))
+```
+
+| Magnification | Diameter of FOV (µm) | Area of FOV (µm\^2) | Area of Grid (µm\^2) | Area of small square in grid (µm\^2) |
+|---------------|---------------|---------------|---------------|---------------|
+| 10X           | 2200                 | 3801327.11          | 1000000              | 10000                                |
+| 20X           | 1100                 | 950331.78           | 250000               | 2500                                 |
+| 40X           | 550                  | 237582.94           | 62500                | 625                                  |
+| 63X           | 360                  | 101787.60           | 25600                | 256                                  |
+| 100X          | 220                  | 38013.27            | 10000                | 100                                  |
+
+```{r}
+# Area of chamber we are using for filtering samples
+Area_chamber_LgGlass_Hu <- 153.938 #mm^2
+Area_chamber_Huber <- 283.5288 #mm^2
+Area_chamber_Aceglass_Hu <- 314.1593
+# Volume <- 2 #ml # This changes!
+# This depends on 
+# Area_FOV <- 1E4 #µm^2 at 100X magnification based on how sample is counted.
+Dilution_factor <- 0.9 # Pretty standard for what we are doing.
+
+# Make an area of grid key
+area_grid <- data.frame(MAG = c(10, 20, 40, 63, 100),
+                        area_grid_mm = c(1.00000, 0.24010, 0.06250, 0.02560, 0.01000))
+# 1 um = 0.001 mm
+```
+
+```{r}
+counts_processed <- counts_raw %>% 
+  # Rename column names
+  select(SAMPLE, SAMPLE.ID, EXP.ID, VOL = vol..ml., MAG = Mag..x., count_less20 = X.20um..no.FLP, count_more20 = X.20um..no.FLP.1) %>% 
+  # Make a total count column
+  mutate(count_total = (count_less20 + count_more20)) %>% 
+  # Add in appropriate FOV or Area of Grid, based on magnification
+  left_join(area_grid) %>% 
+  # Get cell count mean for the field of views counted
+  group_by(SAMPLE, SAMPLE.ID, EXP.ID, VOL, MAG, area_grid_mm) %>% 
+    summarize(NUM_FOV = n(),
+              mean_less20 = sum(count_less20)/NUM_FOV,
+              mean_more20 = sum(count_more20)/NUM_FOV,
+              mean_total = sum(count_total)/NUM_FOV) %>% 
+  group_by(SAMPLE, SAMPLE.ID, EXP.ID) %>% 
+  summarise(
+    CELLS_PER_ML_less20 = ((mean_less20)*(Area_chamber_LgGlass_Hu))/((VOL)*(area_grid_mm)*(Dilution_factor)),
+    CELLS_PER_ML_more20 = ((mean_more20)*(Area_chamber_LgGlass_Hu))/((VOL)*(area_grid_mm)*(Dilution_factor)),
+    CELLS_PER_ML_total = ((mean_total)*(Area_chamber_LgGlass_Hu))/((VOL)*(area_grid_mm)*(Dilution_factor))
+  ) %>% 
+  mutate(CELLS_PER_ML_total_SCI = scientific(CELLS_PER_ML_total, digits = 3))
+
+
+glimpse(counts_processed)
+```
+Quick plot
+```{r}
+counts_processed %>% 
+  ggplot(aes(x = SAMPLE, y = CELLS_PER_ML_total)) +
+    geom_jitter(stat = "identity", with = 0.2) +
+    scale_y_log10() +
+  labs(x = "", y = "Log cells/ml", title = "Axial Seamount 2023 eukaryote cell counts") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12))
+```
+
+Full table to report
+```{r}
+counts_processed
+```
+
+
+```{r}
+euk_cell_conc <- counts_raw %>%
+    group_by(SAMPLE, SAMPLE.ID, EXP.ID) %>%
+    summarise(Avg_cellmL = mean(Cellsperml), # Average cells per ml across replicates
+              sem=sd(Cellsperml)/sqrt(length(Cellsperml)), # Standard mean error
+              SD=sd(Cellsperml),  #standard deviation
+              var=sqrt(SD),  # variance
+              Num = n()) %>% #Total number of 
+    data.frame
+```
