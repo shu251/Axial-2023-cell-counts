@@ -35,7 +35,7 @@ counts_raw[is.na(counts_raw)] <- 0
 # head(counts_raw)
 ```
 
-## Set up cells per ml calc
+## Set up microscopy stats
 
 Determine diameter of FOV, grid, etc.
 
@@ -67,6 +67,9 @@ area_grid <- data.frame(MAG = c(10, 20, 40, 63, 100),
 # 1 um = 0.001 mm
 ```
 
+
+## Calculate cells per ml
+
 ```{r}
 counts_processed <- counts_raw %>% 
   # Rename column names
@@ -96,11 +99,12 @@ Quick plot
 ```{r}
 counts_processed %>% 
   ggplot(aes(x = SAMPLE, y = CELLS_PER_ML_total)) +
-    geom_jitter(stat = "identity", with = 0.2) +
+    geom_jitter(stat = "identity", width = 0.1, shape = 21, color = "black", fill = "grey") +
     scale_y_log10() +
   labs(x = "", y = "Log cells/ml", title = "Axial Seamount 2023 eukaryote cell counts") +
   theme_light() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12),
+        axis.text.y = element_text(size = 12))
 ```
 
 Full table to report
@@ -109,13 +113,279 @@ counts_processed
 ```
 
 
+# Grazing experiment cell counts
+
 ```{r}
-euk_cell_conc <- counts_raw %>%
-    group_by(SAMPLE, SAMPLE.ID, EXP.ID) %>%
-    summarise(Avg_cellmL = mean(Cellsperml), # Average cells per ml across replicates
-              sem=sd(Cellsperml)/sqrt(length(Cellsperml)), # Standard mean error
-              SD=sd(Cellsperml),  #standard deviation
-              var=sqrt(SD),  # variance
-              Num = n()) %>% #Total number of 
-    data.frame
+grazecounts <- read.delim("input-data/Grazing-FLP-counts - axial23_grazingcounts.csv", 
+                     blank.lines.skip = FALSE,
+                     na.strings = c("", "NA"),
+                     stringsAsFactors = FALSE, sep = ",") # Import
+
+
+grazecounts[is.na(grazecounts)] <- 0 # Change blanks to zeroes
+
+glimpse(grazecounts)
 ```
+## Set microscope information:
+```{r}
+Area_chamber_LgGlass_Hu <- 153.938 #mm^2
+
+Area_chamber_Huber <- 283.5288 #mm^2
+
+Area_chamber_Aceglass_Hu <- 314.1593
+
+Dilution_factor <- 0.9 # Pretty standard for what we are doing.
+
+# Make an area of grid key (reticule)
+area_grid <- data.frame(MAG = c(10, 20, 40, 63, 100),
+                        area_grid_mm = c(1.00000, 0.24010, 0.06250, 0.02560, 0.01000))
+# 1 um = 0.001 mm
+```
+
+
+## Eukaryote counts from grazing T0
+
+
+```{r}
+cellcounts_from_graze <- grazecounts %>% 
+  filter(Notes != "Too difficult to count") %>% 
+  select(SAMPLE, SAMPLE.ID, EXP.ID, VOL = vol..ml., MAG = Mag..x., FOV, nanoNoFLP = X.20um..no.FLP, microNoFLP = X.20um..no.FLP.1, nanoFLP = X.20um..w.FLP..comma.sep...cell., microFLP = X.20um..w.FLP..comma.sep...cell..1) %>% 
+  # Count number of euk cells observed with FLPs (ex. if "1,2", 'occur' will = 2)
+  mutate(nanoFLP_occur = as.numeric(str_count(nanoFLP, "[1-9]\\d*")), 
+         microFLP_occur = as.numeric(str_count(microFLP, "[1-9]\\d*")),
+         # Add number of euk cells with FLPs to those without for total number of euk cells
+         nanoTOTAL = as.numeric(nanoNoFLP) + nanoFLP_occur, 
+         microTOTAL = as.numeric(microNoFLP) + microFLP_occur,
+         euksTOTAL = nanoTOTAL + microTOTAL)
+
+glimpse(cellcounts_from_graze)
+```
+
+```{r}
+Area_chamber_LgGlass_Hu <- 153.938 #mm^2
+
+Area_chamber_Huber <- 283.5288 #mm^2
+
+Area_chamber_Aceglass_Hu <- 314.1593
+
+Dilution_factor <- 0.9 # Pretty standard for what we are doing.
+
+# Make an area of grid key (reticule)
+area_grid <- data.frame(MAG = c(10, 20, 40, 63, 100),
+                        area_grid_mm = c(1.00000, 0.24010, 0.06250, 0.02560, 0.01000))
+```
+
+
+```{r}
+counts_cellsml_all <- cellcounts_from_graze %>%
+  group_by(SAMPLE, SAMPLE.ID, EXP.ID, VOL = as.numeric(VOL), MAG) %>% #Calculate averages by sample
+  summarise(totalFOV = n(), # Count total FOV counted
+            nanoAvg = sum(nanoTOTAL)/totalFOV, #Average per FOV
+            nanoVar = var(nanoTOTAL), #Variance
+            nanoSd = (2*(sqrt(nanoVar))), #Standard deviation
+            microAvg = sum(microTOTAL)/totalFOV, ## Repeat for microeuks
+            microVar = var(microTOTAL), 
+            microSd = (2*(sqrt(microVar))), 
+            euksAvg = sum(euksTOTAL)/totalFOV, ## Repeat for total cell count
+            euksVar = var(euksTOTAL), 
+            euksSd = (2*(sqrt(euksVar))), 
+            .groups = 'drop_last') %>%
+  left_join(area_grid) %>% 
+# Use above microscope stats to fill in:
+  mutate(nanoCONC = ((nanoAvg * Area_chamber_LgGlass_Hu)/(VOL * area_grid_mm * 0.9)),
+         microCONC = ((microAvg * Area_chamber_LgGlass_Hu)/(VOL * area_grid_mm * 0.9)),
+         eukCONC = ((euksAvg * Area_chamber_LgGlass_Hu)/(VOL * area_grid_mm * 0.9))) 
+
+glimpse(counts_cellsml_all)
+unique(counts_cellsml_all$SAMPLE.ID)
+```
+
+Quick plot for euk cell counts
+
+```{r}
+counts_cellsml_all %>% 
+  separate(EXP.ID, into = c("REP", "TIMEPOINT"), remove = FALSE) %>% 
+  separate(SAMPLE, into = c("SITE", "EXP_tmp"), remove = FALSE) %>% 
+  mutate(EXP_TYPE = case_when(
+    grepl("miniSID", SAMPLE.ID) ~ "miniSID",
+    SITE == "BSW" ~ "large",
+    TRUE ~ EXP_tmp)) %>% 
+  ggplot(aes(x = SITE, y = eukCONC, fill = TIMEPOINT, shape = REP)) +
+  geom_jitter(stat = "identity", width = 0.1, shape = 21, color = "black") +
+    scale_y_log10() +
+  labs(x = "", y = "Log cells/ml", title = "Eukaryote cell counts from grazing experiments") +
+  theme_light() +
+  facet_grid(cols = vars(EXP_TYPE), scales = "free", space = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12),
+        axis.text.y = element_text(size = 12))
+```
+
+
+# Grazing experiment calculations
+
+```{r}
+glimpse(grazecounts)
+unique(grazecounts$Notes)
+
+```
+
+## Base grazing experiment stats
+```{r}
+graze_0 <- grazecounts %>% 
+  filter(Notes != "Too difficult to count" & Notes != "not countable") %>% 
+  select(SAMPLE, SAMPLE.ID, EXP.ID, VOL = vol..ml., MAG = Mag..x., FOV, nanoNoFLP = X.20um..no.FLP, microNoFLP = X.20um..no.FLP.1, nanoFLP = X.20um..w.FLP..comma.sep...cell., microFLP = X.20um..w.FLP..comma.sep...cell..1) %>%
+  separate(EXP.ID, into = c("REP", "TIMEPOINT"), remove = FALSE) %>% 
+  separate(SAMPLE, into = c("SITE", "EXP_tmp"), remove = FALSE) %>% 
+  mutate(EXP_TYPE = case_when(
+    grepl("miniSID", SAMPLE.ID) ~ "miniSID",
+    SITE == "BSW" ~ "large",
+    TRUE ~ EXP_tmp)) 
+
+glimpse(graze_0)
+```
+Total number of grazing experimentss
+```{r}
+# Sites estimated
+unique(graze_0$SITE)
+
+# Types of experiments considered
+unique(graze_0$EXP_TYPE)
+```
+
+
+## Pull out ingested flps
+```{r}
+graze_euksw_flp <- graze_0 %>% 
+  select(-nanoNoFLP, -microNoFLP) %>% 
+  # Inputs that are comma separated will be split into a new row
+  separate_rows(microFLP, sep = ",", convert = TRUE) %>%
+  separate_rows(nanoFLP, sep = ",", convert = TRUE) %>%
+  # Replace NAs with zeroes
+  replace_na(list(microFLP = 0, nanoFLP = 0)) %>% 
+  select(micro_size = microFLP, nano_size = nanoFLP, everything()) %>% 
+  pivot_longer(cols = ends_with("_size"), names_to = "SizeFrac", values_to = "num_of_FLP") %>%
+  filter(num_of_FLP > 0) %>% 
+  group_by(SAMPLE.ID, EXP.ID, REP, TIMEPOINT, EXP_TYPE, SizeFrac, SAMPLE, SITE) %>% 
+    summarise(total_FLP = sum(num_of_FLP),
+              total_euks_wflp = n())
+
+
+glimpse(graze_euksw_flp)
+```
+1. total_FLP = sum of FLPs found inside a euk cell
+
+2. total_euks_wflp = number of euks counted with ingested FLP
+
+> Repeat above operation for euk cells without any FLP. Here, subset total number of observations where there was a euk cell without FLP. These need to be counted as euk cell without an FLP.
+
+## Estimate euks with out FLPs
+
+```{r}
+glimpse(graze_0)
+```
+
+This is repeated because we need to count the number of euk cells without FLP in the overall average.
+```{r}
+graze_1 <- graze_0 %>% 
+  # Select cells without FLPs to count.
+  select(-nanoFLP, -microFLP) %>% 
+  select(micro_size = microNoFLP, nano_size = nanoNoFLP, everything()) %>% 
+  pivot_longer(cols = ends_with("_size"), names_to = "SizeFrac", values_to = "num_of_euks") %>%
+  group_by(SAMPLE.ID, EXP.ID, REP, TIMEPOINT, EXP_TYPE, SizeFrac, SAMPLE, SITE) %>% 
+    summarise(total_euks_noFLP = sum(num_of_euks)) %>% 
+  #
+  # Join with FLP count dataframe
+  left_join(graze_euksw_flp) %>% 
+  replace_na(list(total_FLP = 0, total_euks_wflp = 0)) #Replace NAs with zero
+
+glimpse(graze_1)
+unique(graze_1$TIMEPOINT)
+```
+
+Compile all grazing, full table:
+```{r}
+counts_grazing_compiled <- graze_1 %>% 
+  group_by(SITE, SAMPLE, SAMPLE.ID, EXP.ID, EXP_TYPE, REP, TIMEPOINT) %>% 
+  summarise(total_euks_noFLP = sum(total_euks_noFLP),
+            total_FLP = sum(total_FLP),
+            total_euks_wFLP = sum(total_euks_wflp)) %>% 
+  mutate(MINUTES = as.numeric(str_remove(TIMEPOINT, "T"))) %>% 
+  group_by(SITE, SAMPLE, SAMPLE.ID, EXP.ID, EXP_TYPE, REP, TIMEPOINT, MINUTES) %>% 
+  #
+  # FLPperEuk is the total FLP divided by the total number of euk cells counted
+  mutate(FLPperEuk = total_FLP/(sum(total_euks_noFLP, total_euks_wFLP)))
+
+  
+glimpse(counts_grazing_compiled)
+# If we wanted to estimate this by size fraction, this is where we would integrate total with size fractionated.
+```
+
+The code above takes the processed microscopy counts, and estimates the total number of FLP and the total number of eukaryotes counted (with or without FLP inside). To calculate the rate that FLP were ingested, we need the slope of the line when we plot the number of ingested FLP per eukaryote cell by experiment time.
+
+We will use this equation below: `FLPperEuk = total_FLP/(sum(total_euks_noFLP, total_euks_wflp))`.
+
+### Plot FLP per euk by time
+
+```{r, fig.width=9, fig.height=2}
+counts_grazing_compiled %>% 
+  ggplot(aes(x = MINUTES, y = FLPperEuk, fill = EXP_TYPE)) +
+  geom_point(stat = "identity", shape = 21, color = "black") +
+    facet_grid(cols = vars(SITE)) +
+  theme_linedraw()
+```
+
+```{r}
+glimpse(counts_grazing_compiled)
+```
+
+
+## Run lm to get slope
+
+```{r}
+library(broom)
+```
+
+
+```{r}
+
+calculate_lm <- function(df){
+  regression_1 <- df %>%
+  type.convert(as.is = TRUE) %>%
+  #
+  group_by(SITE, SAMPLE, SAMPLE.ID, EXP_TYPE) %>%
+    nest(-SITE, -SAMPLE, -SAMPLE.ID, -EXP_TYPE) %>% 
+  #
+  mutate(lm_fit = map(data, ~lm(FLPperEuk ~ MINUTES, data = .)),
+         tidied = map(lm_fit, tidy)) %>% 
+  unnest(tidied) %>% 
+  select(SITE, SAMPLE, SAMPLE.ID, EXP_TYPE, term, estimate) %>%
+  #
+  pivot_wider(names_from = term, values_from = estimate) %>% 
+  data.frame
+  # Reset column names
+  colnames(regression_1) <- c("SITE", "SAMPLE", 
+                              "SAMPLE.ID", "EXP_TYPE",
+                              "INTERCEPT", "SLOPE")
+  # Repeat broom model to get R2
+  out_regression <- df %>%
+  group_by(SITE, SAMPLE, SAMPLE.ID, EXP_TYPE) %>%
+    nest(-SITE, -SAMPLE, -SAMPLE.ID, -EXP_TYPE) %>% 
+  #
+  mutate(lm_fit = map(data, ~lm(FLPperEuk ~ MINUTES, data = .)),
+         glanced = map(lm_fit, glance)) %>% 
+  unnest(glanced) %>% 
+    select(SITE, SAMPLE, SAMPLE.ID, EXP_TYPE, r.squared) %>%
+  right_join(regression_1) %>% 
+  right_join(df) %>% 
+  data.frame
+  return(out_regression)
+}
+```
+
+```{r}
+grazing_compiled_wslope <- calculate_lm(counts_grazing_compiled)
+#
+glimpse(grazing_compiled_wslope)
+# unique(grazing_compiled_wslope$SLOPE)
+```
+
